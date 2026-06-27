@@ -215,7 +215,97 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-      const payment = await createPayment(order.id, total);
+      // Inline payment creation (copied from create-payment) to avoid cross-function secret mismatch
+      const referenceId = `EZ-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const expiryMinutes = Number(Deno.env.get('FERSAKU_EXPIRY_MINUTES') || 30);
+      const expiredAt = new Date(Date.now() + expiryMinutes * 60 * 1000).toISOString();
+
+      let qrisResponse: Record<string, unknown> = {};
+      const fersakuSecretKey = Deno.env.get('FERSAKU_SECRET_KEY') || Deno.env.get('FERSAKU_API_KEY');
+      const fersakuApiUrl = (Deno.env.get('FERSAKU_API_URL') || 'https://fersaku.com/api/v1').replace(/\/$/, '');
+
+      if (fersakuSecretKey) {
+        const headersF: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${fersakuSecretKey}`,
+        };
+
+        try {
+          const fersakuRes = await fetch(`${fersakuApiUrl}/payments`, {
+            method: 'POST',
+            headers: headersF,
+            body: JSON.stringify({
+              amount: Math.round(total),
+              customer_name: order.uid || order.whatsapp || 'Customer',
+              customer_email: order.email || undefined,
+              description: `Pembayaran ${order.invoice_number}`,
+              external_id: referenceId,
+              expired_minutes: expiryMinutes,
+            }),
+          });
+
+          qrisResponse = await fersakuRes.json().catch(() => ({}));
+
+          if (!fersakuRes.ok) {
+            console.error('Fersaku error:', qrisResponse);
+            throw new Error('Fersaku payment creation gagal');
+          }
+        } catch (fetchError) {
+          console.error('Fersaku fetch failed:', fetchError);
+          throw new Error('Gagal terhubung ke Fersaku. Periksa host/API URL dan kredensial.');
+        }
+      } else {
+        qrisResponse = {
+          qr_string: `000201010211${referenceId}5300336ID5913EZ-STORE DEMO6013ID6013EZ-STORE DEMO6304`,
+          qr_image_url: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=000201010211${referenceId}`,
+          external_id: referenceId,
+        };
+      }
+
+      const qrisString = String(
+        qrisResponse.qr_string || qrisResponse.qris_string || qrisResponse.qris || qrisResponse.qr || ''
+      );
+      const qrCodeUrl = String(
+        qrisResponse.qr_image_url || qrisResponse.qr_code_url || qrisResponse.qrcode_url || qrisResponse.qr_url || ''
+      );
+
+      if (!qrisString && !qrCodeUrl) {
+        console.error('Fersaku response missing QR data', qrisResponse);
+        throw new Error('Fersaku tidak mengembalikan QR.');
+      }
+
+      const providerPaymentId = String(qrisResponse.id || qrisResponse.payment_id || qrisResponse.order_id || referenceId);
+
+      const { data: payment, error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          order_id: order.id,
+          payment_method: 'qris',
+          amount: total,
+          status: 'pending',
+          qris_string: qrisString || null,
+          qr_code_url: qrCodeUrl || null,
+          reference_id: referenceId,
+          expired_at: expiredAt,
+          raw_response: {
+            ...qrisResponse,
+            internal_reference_id: referenceId,
+            provider_payment_id: providerPaymentId,
+          },
+        })
+        .select()
+        .single();
+
+      if (paymentError || !payment) {
+        console.error('Payment insert error:', paymentError);
+        throw new Error('Gagal membuat pembayaran');
+      }
+
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'waiting_payment', updated_at: new Date().toISOString() })
+        .eq('id', order.id);
+
       await sendTelegramMessage([
         '📦 Pesanan Masuk',
         `Invoice: ${order.invoice_number}`,

