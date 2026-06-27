@@ -39,6 +39,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
                 headers: {
                   'Content-Type': 'application/json',
                   Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
                 },
                 body: JSON.stringify({ action: 'validate', token: storedToken }),
               }
@@ -91,6 +92,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ email, password, action: 'login' }),
         }
