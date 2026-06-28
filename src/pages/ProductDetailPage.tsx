@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Package, ShoppingCart, Tag, AlertCircle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { Product, Category } from '../lib/supabase';
 import { PageLoader } from '../components/shared/LoadingSpinner';
 import { formatCurrency } from '../lib/utils';
@@ -23,6 +23,11 @@ export function ProductDetailPage() {
       if (!slug) return;
       setLoading(true);
       try {
+        if (!isSupabaseConfigured) {
+          setProduct(null);
+          setCategory(null);
+          return;
+        }
         const { data: productData, error } = await supabase
           .from('products')
           .select('*')

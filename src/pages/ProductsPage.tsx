@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Package, ChevronLeft, ChevronRight } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { Product, Category } from '../lib/supabase';
 import { ProductCard } from '../components/shared/ProductCard';
 import { ProductCardSkeleton } from '../components/shared/Skeleton';
@@ -27,6 +27,11 @@ export function ProductsPage() {
 
   useEffect(() => {
     const fetchCategories = async () => {
+      if (!isSupabaseConfigured) {
+        setCategories([]);
+        return;
+      }
+
       const { data } = await supabase
         .from('categories')
         .select('*')
@@ -41,6 +46,11 @@ export function ProductsPage() {
     const fetchProducts = async () => {
       setLoading(true);
       try {
+        if (!isSupabaseConfigured) {
+          setProducts([]);
+          setTotalProducts(0);
+          return;
+        }
         let query = supabase
           .from('products')
           .select('*', { count: 'exact' })

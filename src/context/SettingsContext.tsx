@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface Settings {
   site_name: string;
@@ -49,6 +49,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const fetchSettings = async () => {
     try {
+      if (!isSupabaseConfigured) {
+        setSettings(defaultSettings);
+        return;
+      }
+
       const { data, error } = await supabase.from('settings').select('*');
       if (error) throw error;
 

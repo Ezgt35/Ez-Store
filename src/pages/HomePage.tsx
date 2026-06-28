@@ -4,7 +4,7 @@ import {
   Zap, Shield, Headphones, Clock, ChevronRight, Star,
   ShoppingCart, Gamepad2, TrendingUp
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useSettings } from '../context/SettingsContext';
 import type { Product, Category, Banner, Testimonial, FAQ as FAQType } from '../lib/supabase';
 import { ProductCard } from '../components/shared/ProductCard';
@@ -23,6 +23,11 @@ export function HomePage() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!isSupabaseConfigured) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const [
           bannersRes,
