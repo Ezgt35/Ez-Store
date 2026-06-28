@@ -1,4 +1,4 @@
-import { createSupabaseAdmin } from './_lib/supabase-admin';
+import { createSupabaseAdmin } from './_lib/supabase-admin.js';
 
 function mapStatus(status: string | undefined) {
   const normalized = (status || '').toLowerCase();

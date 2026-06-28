@@ -1,4 +1,4 @@
-import { createSupabaseAdmin, corsHeaders, getJsonBody } from './_lib/supabase-admin';
+import { createSupabaseAdmin, corsHeaders, getJsonBody } from './_lib/supabase-admin.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {

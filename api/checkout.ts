@@ -1,4 +1,4 @@
-import { createSupabaseAdmin, corsHeaders, getJsonBody } from './_lib/supabase-admin';
+import { createSupabaseAdmin, corsHeaders, getJsonBody } from './_lib/supabase-admin.js';
 
 function formatCurrency(value: unknown) {
   const amount = Number(value) || 0;
