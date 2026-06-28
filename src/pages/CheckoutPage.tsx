@@ -171,95 +171,32 @@ export function CheckoutPage() {
         return;
       }
 
-      const subtotal = product.final_price * formData.quantity;
-      const discountAmount = calculateDiscount();
-      const total = Math.max(0, subtotal - discountAmount);
-      const invoiceNumber = `EZ${new Date().toISOString().slice(2, 10).replace(/-/g, '')}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const referenceId = `EZ-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const expiredAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          invoice_number: invoiceNumber,
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
           uid: formData.uid,
           server: formData.server || null,
           whatsapp: formData.whatsapp.replace(/\D/g, ''),
           email: formData.email || null,
-          status: 'pending',
-          payment_status: 'waiting_payment',
-          subtotal,
-          discount: discountAmount,
-          total,
-          voucher_id: appliedVoucher?.id || null,
+          productId: product.id,
+          quantity: formData.quantity,
+          voucherCode: appliedVoucher?.code || null,
           notes: formData.notes || null,
-        })
-        .select()
-        .single();
-
-      if (orderError || !orderData) {
-        throw new Error(orderError?.message || 'Gagal membuat pesanan');
-      }
-
-      const { error: itemError } = await supabase.from('order_items').insert({
-        order_id: orderData.id,
-        product_id: product.id,
-        product_name: product.name,
-        quantity: formData.quantity,
-        price: Number(product.final_price),
-        total: subtotal,
+        }),
       });
 
-      if (itemError) {
-        await supabase.from('orders').delete().eq('id', orderData.id);
-        throw new Error('Gagal menyimpan item pesanan');
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.error) {
+        throw new Error(result.error || 'Gagal membuat pesanan');
       }
 
-      const merchantName = 'EZ-STORE';
-      const amount = Math.round(total);
-      const qrPayload = `00020101021126660014ID.CO.QRIS.WALLET0215${merchantName}5303764${amount}5802ID5913${merchantName}6007${referenceId}`;
-      const qrString = `${qrPayload}6304`;
-      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrString)}`;
-
-      const { data: paymentData, error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          order_id: orderData.id,
-          payment_method: 'qris',
-          amount: total,
-          status: 'pending',
-          qris_string: qrString,
-          qr_code_url: qrCodeUrl,
-          reference_id: referenceId,
-          expired_at: expiredAt,
-          raw_response: {
-            fallback: true,
-            internal_reference_id: referenceId,
-            provider_payment_id: referenceId,
-          },
-        })
-        .select()
-        .single();
-
-      if (paymentError || !paymentData) {
-        await supabase.from('order_items').delete().eq('order_id', orderData.id);
-        await supabase.from('orders').delete().eq('id', orderData.id);
-        throw new Error('Gagal membuat pembayaran');
-      }
-
-      if (product.stock !== -1) {
-        await supabase
-          .from('products')
-          .update({ stock: Math.max(0, Number(product.stock) - formData.quantity), updated_at: new Date().toISOString() })
-          .eq('id', product.id);
-      }
-
-      if (appliedVoucher) {
-        await supabase
-          .from('vouchers')
-          .update({ used_count: appliedVoucher.used_count + 1, updated_at: new Date().toISOString() })
-          .eq('id', appliedVoucher.id);
-      }
+      const orderData = result.order;
+      const paymentData = result.payment;
 
       navigate(`/invoice/${orderData.invoice_number}`, {
         state: { payment: paymentData },
