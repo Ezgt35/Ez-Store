@@ -8,8 +8,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, X-Admin-Token",
 };
 
-const SECRET = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || 'fallback-secret-key';
 const TOKEN_EXPIRY_SECONDS = 86400;
+
+function getSecretCandidates() {
+  const secrets = new Set<string>();
+  const primary = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (primary) secrets.add(primary);
+  secrets.add('fallback-secret-key');
+  return Array.from(secrets);
+}
 
 interface LoginRequest {
   email: string;
@@ -29,9 +36,9 @@ function base64UrlDecode(value: string) {
   return new Uint8Array([...atob(base64)].map(ch => ch.charCodeAt(0)));
 }
 
-async function signPayload(payload: string) {
+async function signPayload(payload: string, secret: string) {
   const encoder = new TextEncoder();
-  const keyData = encoder.encode(SECRET);
+  const keyData = encoder.encode(secret);
   const payloadData = encoder.encode(payload);
   const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', cryptoKey, payloadData);
@@ -41,7 +48,8 @@ async function signPayload(payload: string) {
 async function createToken(adminId: string, email: string) {
   const exp = Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_SECONDS;
   const payload = JSON.stringify({ adminId, email, exp });
-  const sig = await signPayload(payload);
+  const secret = getSecretCandidates()[0] || 'fallback-secret-key';
+  const sig = await signPayload(payload, secret);
   return `${base64UrlEncode(new TextEncoder().encode(payload))}.${base64UrlEncode(sig)}`;
 }
 
@@ -50,13 +58,26 @@ async function verifyToken(token: string) {
   if (!payloadPart || !sigPart) return null;
   try {
     const payload = new TextDecoder().decode(base64UrlDecode(payloadPart));
-    const expected = await signPayload(payload);
     const actual = base64UrlDecode(sigPart);
-    if (expected.length !== actual.length) return null;
-    for (let i = 0; i < expected.length; i++) if (expected[i] !== actual[i]) return null;
-    const data = JSON.parse(payload) as { adminId: string; email: string; exp: number };
-    if (data.exp < Math.floor(Date.now() / 1000)) return null;
-    return data;
+
+    for (const secret of getSecretCandidates()) {
+      const expected = await signPayload(payload, secret);
+      if (expected.length !== actual.length) continue;
+      let matched = true;
+      for (let i = 0; i < expected.length; i++) {
+        if (expected[i] !== actual[i]) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) {
+        const data = JSON.parse(payload) as { adminId: string; email: string; exp: number };
+        if (data.exp < Math.floor(Date.now() / 1000)) return null;
+        return data;
+      }
+    }
+
+    return null;
   } catch {
     return null;
   }
