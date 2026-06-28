@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, EyeOff, Tags } from 'lucide-react';
 import type { Category } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -34,20 +35,12 @@ export function AdminCategoriesPage() {
 
   const fetchCategories = async () => {
     setLoading(true);
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ action: 'fetch_categories' }),
-    });
-    const result = await response.json();
-    if (response.ok) {
-      setCategories(result.categories || []);
+    const { data, error } = await supabase.from('categories').select('*').order('sort_order');
+    if (error) {
+      showToast('error', error.message || 'Gagal memuat kategori');
+      setCategories([]);
     } else {
-      showToast('error', result.error || 'Gagal memuat kategori');
+      setCategories((data || []) as Category[]);
     }
     setLoading(false);
   };
@@ -106,18 +99,11 @@ export function AdminCategoriesPage() {
         ? { category: { id: editingCategory.id, ...categoryData } }
         : { category: categoryData };
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ action, payload }),
-      });
-      const result = await response.json();
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Gagal menyimpan kategori');
+      const { data, error } = editingCategory
+        ? await supabase.from('categories').update(categoryData).eq('id', editingCategory.id).select().single()
+        : await supabase.from('categories').insert([categoryData]).select().single();
+      if (error || !data) {
+        throw new Error(error?.message || 'Gagal menyimpan kategori');
       }
       showToast('success', editingCategory ? 'Kategori berhasil diupdate' : 'Kategori berhasil ditambahkan');
 
@@ -136,25 +122,13 @@ export function AdminCategoriesPage() {
       return;
     }
 
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({
-        action: 'category_update',
-        payload: { category: { id: category.id, is_active: !category.is_active } },
-      }),
-    });
-    const result = await response.json();
+    const { error } = await supabase.from('categories').update({ is_active: !category.is_active }).eq('id', category.id);
 
-    if (response.ok && !result.error) {
+    if (!error) {
       showToast('success', category.is_active ? 'Kategori dinonaktifkan' : 'Kategori diaktifkan');
       fetchCategories();
     } else {
-      showToast('error', result.error || 'Gagal mengubah status');
+      showToast('error', error.message || 'Gagal mengubah status');
     }
   };
 
@@ -166,25 +140,13 @@ export function AdminCategoriesPage() {
       return;
     }
 
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({
-        action: 'category_delete',
-        payload: { categoryId: category.id },
-      }),
-    });
-    const result = await response.json();
+    const { error } = await supabase.from('categories').delete().eq('id', category.id);
 
-    if (response.ok && !result.error) {
+    if (!error) {
       showToast('success', 'Kategori berhasil dihapus');
       fetchCategories();
     } else {
-      showToast('error', result.error || 'Gagal menghapus kategori');
+      showToast('error', error.message || 'Gagal menghapus kategori');
     }
   };
 

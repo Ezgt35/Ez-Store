@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ShoppingCart, ExternalLink, Filter, Download } from 'lucide-react';
 import type { Order, OrderItem } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { formatCurrency, formatDateTime, getStatusColor, getStatusText } from '../../lib/utils';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useToast } from '../../context/ToastContext';
@@ -34,29 +35,21 @@ export function AdminOrdersPage() {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          action: 'fetch_orders',
-          payload: {
-            statusFilter,
-            searchQuery,
-            limit: 100,
-          },
-        }),
-      });
+      let query = supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).limit(100);
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
+      }
+      if (searchQuery) {
+        const pattern = `%${searchQuery}%`;
+        query = query.or(`invoice_number.ilike.${pattern},uid.ilike.${pattern},whatsapp.ilike.${pattern}`);
+      }
 
-      const data = await response.json();
-      if (!response.ok) {
-        showToast('error', data.error || 'Gagal memuat pesanan');
+      const { data, error } = await query;
+      if (error) {
+        showToast('error', error.message || 'Gagal memuat pesanan');
         setOrders([]);
       } else {
-        setOrders(data.orders || []);
+        setOrders((data || []) as OrderWithItems[]);
       }
     } catch (err) {
       showToast('error', 'Gagal memuat pesanan');
@@ -82,22 +75,9 @@ export function AdminOrdersPage() {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          action: 'update_order_status',
-          payload: { orderId, status },
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        showToast('error', data.error || 'Gagal mengupdate status');
+      const { error } = await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId);
+      if (error) {
+        showToast('error', error.message || 'Gagal mengupdate status');
       } else {
         showToast('success', 'Status berhasil diupdate');
         fetchOrders();

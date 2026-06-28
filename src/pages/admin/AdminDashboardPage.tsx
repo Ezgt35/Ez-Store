@@ -5,6 +5,7 @@ import {
   AlertCircle, CheckCircle
 } from 'lucide-react';
 import type { Order, Product } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { formatCurrency, formatDateTime, getStatusColor, getStatusText } from '../../lib/utils';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useAdminAuth } from '../../context/AdminAuthContext';
@@ -26,43 +27,46 @@ export function AdminDashboardPage() {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      setLoading(false);
-      
+      setLoading(true);
+
       if (!token) {
+        setLoading(false);
         return;
       }
 
       try {
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({ action: 'fetch_dashboard' }),
-        });
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-        const data = await response.json();
-        if (!response.ok) {
-          console.warn('Dashboard API returned error:', data.error || data);
-          // Show dashboard with empty data instead of blocking
-          return;
-        }
+        const [productsRes, ordersRes, todayOrdersRes, monthOrdersRes, recentOrdersRes, popularProductsRes] = await Promise.all([
+          supabase.from('products').select('id', { count: 'exact' }).eq('is_active', true),
+          supabase.from('orders').select('id', { count: 'exact' }),
+          supabase.from('orders').select('total').eq('payment_status', 'paid').gte('created_at', today.toISOString()),
+          supabase.from('orders').select('total').eq('payment_status', 'paid').gte('created_at', monthStart.toISOString()),
+          supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).limit(10),
+          supabase.from('products').select('*').eq('is_active', true).eq('is_popular', true).limit(5),
+        ]);
+
+        const todayRevenue = todayOrdersRes.data?.reduce((sum: number, o: { total: number }) => sum + Number(o.total), 0) || 0;
+        const monthRevenue = monthOrdersRes.data?.reduce((sum: number, o: { total: number }) => sum + Number(o.total), 0) || 0;
+        const pendingOrders = ordersRes.data?.filter((o: { status: string }) => o.status === 'pending').length || 0;
+        const completedOrders = ordersRes.data?.filter((o: { status: string }) => o.status === 'completed').length || 0;
 
         setStats({
-          totalProducts: data.totalProducts || 0,
-          totalOrders: data.totalOrders || 0,
-          todayRevenue: data.todayRevenue || 0,
-          monthRevenue: data.monthRevenue || 0,
-          pendingOrders: data.pendingOrders || 0,
-          completedOrders: data.completedOrders || 0,
+          totalProducts: productsRes.count || 0,
+          totalOrders: ordersRes.count || 0,
+          todayRevenue,
+          monthRevenue,
+          pendingOrders,
+          completedOrders,
         });
-        setRecentOrders(data.recentOrders || []);
-        setPopularProducts(data.popularProducts || []);
+        setRecentOrders(recentOrdersRes.data || []);
+        setPopularProducts(popularProductsRes.data || []);
       } catch (err) {
         console.warn('Failed to fetch dashboard data:', err);
-        // Show dashboard with empty data instead of blocking
+      } finally {
+        setLoading(false);
       }
     };
 

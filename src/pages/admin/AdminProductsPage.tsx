@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, EyeOff, Search, Package } from 'lucide-react';
 import type { Product, Category } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/utils';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useAdminAuth } from '../../context/AdminAuthContext';
@@ -50,21 +51,12 @@ export function AdminProductsPage() {
     }
 
     setLoading(true);
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ action: 'fetch_products' }),
-    });
-    const result = await response.json();
-    if (response.ok && !result.error) {
-      setProducts(result.products || []);
-    } else {
-      showToast('error', result.error || 'Gagal memuat produk');
+    const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+    if (error) {
+      showToast('error', error.message || 'Gagal memuat produk');
       setProducts([]);
+    } else {
+      setProducts((data || []) as Product[]);
     }
     setLoading(false);
   };
@@ -75,21 +67,12 @@ export function AdminProductsPage() {
       return;
     }
 
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ action: 'fetch_categories' }),
-    });
-    const result = await response.json();
-    if (response.ok && !result.error) {
-      setCategories(result.categories || []);
-    } else {
-      showToast('error', result.error || 'Gagal memuat kategori');
+    const { data, error } = await supabase.from('categories').select('*').order('sort_order');
+    if (error) {
+      showToast('error', error.message || 'Gagal memuat kategori');
       setCategories([]);
+    } else {
+      setCategories((data || []) as Category[]);
     }
   };
 
@@ -174,18 +157,12 @@ export function AdminProductsPage() {
         ? { product: { id: editingProduct.id, ...productData } }
         : { product: productData };
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ action, payload }),
-      });
-      const result = await response.json();
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Gagal menyimpan produk');
+      const { data, error } = editingProduct
+        ? await supabase.from('products').update(productData).eq('id', editingProduct.id).select().single()
+        : await supabase.from('products').insert([productData]).select().single();
+
+      if (error || !data) {
+        throw new Error(error?.message || 'Gagal menyimpan produk');
       }
 
       showToast('success', editingProduct ? 'Produk berhasil diupdate' : 'Produk berhasil ditambahkan');
@@ -205,25 +182,13 @@ export function AdminProductsPage() {
       return;
     }
 
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({
-        action: 'product_update',
-        payload: { product: { id: product.id, is_active: !product.is_active } },
-      }),
-    });
-    const result = await response.json();
+    const { error } = await supabase.from('products').update({ is_active: !product.is_active }).eq('id', product.id);
 
-    if (response.ok && !result.error) {
+    if (!error) {
       showToast('success', product.is_active ? 'Produk dinonaktifkan' : 'Produk diaktifkan');
       fetchProducts();
     } else {
-      showToast('error', result.error || 'Gagal mengubah status');
+      showToast('error', error.message || 'Gagal mengubah status');
     }
   };
 
@@ -235,25 +200,13 @@ export function AdminProductsPage() {
       return;
     }
 
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({
-        action: 'product_delete',
-        payload: { productId: product.id },
-      }),
-    });
-    const result = await response.json();
+    const { error } = await supabase.from('products').delete().eq('id', product.id);
 
-    if (response.ok && !result.error) {
+    if (!error) {
       showToast('success', 'Produk berhasil dihapus');
       fetchProducts();
     } else {
-      showToast('error', result.error || 'Gagal menghapus produk');
+      showToast('error', error.message || 'Gagal menghapus produk');
     }
   };
 
