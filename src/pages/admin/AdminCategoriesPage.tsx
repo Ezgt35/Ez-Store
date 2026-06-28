@@ -38,7 +38,7 @@ export function AdminCategoriesPage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Admin-Token': token,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ action: 'fetch_categories' }),
     });
@@ -109,7 +109,7 @@ export function AdminCategoriesPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Admin-Token': token,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ action, payload }),
       });
@@ -138,7 +138,7 @@ export function AdminCategoriesPage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Admin-Token': token,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         action: 'category_update',
@@ -167,7 +167,7 @@ export function AdminCategoriesPage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Admin-Token': token,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         action: 'category_delete',

@@ -38,7 +38,7 @@ export function AdminOrdersPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Admin-Token': token,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           action: 'fetch_orders',
@@ -85,7 +85,7 @@ export function AdminOrdersPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Admin-Token': token,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           action: 'update_order_status',

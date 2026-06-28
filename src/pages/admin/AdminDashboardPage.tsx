@@ -37,7 +37,7 @@ export function AdminDashboardPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Admin-Token': token,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ action: 'fetch_dashboard' }),
         });
