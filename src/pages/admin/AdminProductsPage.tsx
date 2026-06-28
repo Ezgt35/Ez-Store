@@ -55,6 +55,7 @@ export function AdminProductsPage() {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({ action: 'fetch_products' }),
     });
@@ -79,6 +80,7 @@ export function AdminProductsPage() {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({ action: 'fetch_categories' }),
     });
@@ -177,6 +179,7 @@ export function AdminProductsPage() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({ action, payload }),
       });
@@ -207,6 +210,7 @@ export function AdminProductsPage() {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         action: 'product_update',
@@ -236,6 +240,7 @@ export function AdminProductsPage() {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         action: 'product_delete',

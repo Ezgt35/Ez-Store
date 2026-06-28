@@ -7,14 +7,13 @@ interface User {
   name: string;
   whatsapp: string;
   created_at?: string;
-  provider?: 'custom' | 'google';
+  provider?: 'custom';
 }
 
 interface UserAuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
   token: string | null;
@@ -27,7 +26,7 @@ const AUTH_TOKEN_KEY = 'ezstore_user_auth_token';
 const AUTH_EXPIRY_KEY = 'ezstore_user_auth_expiry';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-function normalizeUser(payload: any, provider: 'custom' | 'google' = 'custom'): User {
+function normalizeUser(payload: any): User {
   return {
     id: payload?.id || payload?.userId || payload?.user?.id || '',
     email: payload?.email || payload?.user?.email || '',
@@ -40,7 +39,7 @@ function normalizeUser(payload: any, provider: 'custom' | 'google' = 'custom'): 
       'Pengguna',
     whatsapp: payload?.whatsapp || payload?.user?.user_metadata?.whatsapp || '',
     created_at: payload?.created_at || payload?.user?.created_at,
-    provider,
+    provider: 'custom',
   };
 }
 
@@ -55,7 +54,6 @@ export function UserAuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(AUTH_KEY);
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(AUTH_EXPIRY_KEY);
-    void supabase.auth.signOut();
   }, []);
 
   useEffect(() => {
@@ -69,7 +67,7 @@ export function UserAuthProvider({ children }: { children: ReactNode }) {
         if (Date.now() < expiry) {
           try {
             const parsed = JSON.parse(storedAuth);
-            setUser(normalizeUser(parsed, 'custom'));
+            setUser(normalizeUser(parsed));
             setToken(storedToken);
             localStorage.setItem(AUTH_EXPIRY_KEY, (Date.now() + SESSION_DURATION).toString());
           } catch {
@@ -84,31 +82,10 @@ export function UserAuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(normalizeUser(session.user, 'google'));
-        setToken(session.access_token);
-        localStorage.setItem(AUTH_KEY, JSON.stringify(normalizeUser(session.user, 'google')));
-        localStorage.setItem(AUTH_TOKEN_KEY, session.access_token);
-        localStorage.setItem(AUTH_EXPIRY_KEY, (Date.now() + SESSION_DURATION).toString());
-      }
-
       setLoading(false);
     };
 
     validateSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setUser(normalizeUser(session.user, 'google'));
-        setToken(session.access_token);
-        localStorage.setItem(AUTH_KEY, JSON.stringify(normalizeUser(session.user, 'google')));
-        localStorage.setItem(AUTH_TOKEN_KEY, session.access_token);
-        localStorage.setItem(AUTH_EXPIRY_KEY, (Date.now() + SESSION_DURATION).toString());
-      } else if (event === 'SIGNED_OUT') {
-        logout();
-      }
-    });
 
     const checkInterval = setInterval(() => {
       const storedExpiry = localStorage.getItem(AUTH_EXPIRY_KEY);
@@ -119,7 +96,6 @@ export function UserAuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       clearInterval(checkInterval);
-      subscription.unsubscribe();
     };
   }, [logout]);
 
@@ -161,39 +137,12 @@ export function UserAuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
-    try {
-      setLoading(true);
-      const redirectTo = `${window.location.origin}/user/dashboard`;
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo,
-          queryParams: {
-            prompt: 'select_account',
-          },
-        },
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err?.message || 'Gagal memulai login Google' };
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <UserAuthContext.Provider
       value={{
         user,
         loading,
         login,
-        loginWithGoogle,
         logout,
         isAuthenticated: user !== null,
         token,

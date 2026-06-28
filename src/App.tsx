@@ -35,7 +35,6 @@ import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 // User Pages
 import { UserLoginPage } from './pages/UserLoginPage';
 import { UserDashboardPage } from './pages/UserDashboardPage';
-import { AuthCallbackPage } from './pages/AuthCallbackPage';
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -68,7 +67,6 @@ function App() {
 
               {/* User Routes */}
               <Route path="/login" element={<UserLoginPage />} />
-              <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/user/dashboard" element={<UserDashboardPage />} />
 
               {/* Public Routes */}

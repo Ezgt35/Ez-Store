@@ -39,6 +39,7 @@ export function AdminCategoriesPage() {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({ action: 'fetch_categories' }),
     });
@@ -110,6 +111,7 @@ export function AdminCategoriesPage() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({ action, payload }),
       });
@@ -139,6 +141,7 @@ export function AdminCategoriesPage() {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         action: 'category_update',
@@ -168,6 +171,7 @@ export function AdminCategoriesPage() {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         action: 'category_delete',
