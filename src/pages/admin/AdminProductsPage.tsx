@@ -193,20 +193,23 @@ export function AdminProductsPage() {
   };
 
   const deleteProduct = async (product: Product) => {
-    if (!confirm(`Yakin ingin menghapus "${product.name}"?`)) return;
+    if (!confirm(`Yakin ingin menonaktifkan "${product.name}"?`)) return;
 
     if (!token) {
       showToast('error', 'Unauthorized');
       return;
     }
 
-    const { error } = await supabase.from('products').delete().eq('id', product.id);
+    const { error } = await supabase
+      .from('products')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', product.id);
 
     if (!error) {
-      showToast('success', 'Produk berhasil dihapus');
+      showToast('success', 'Produk berhasil dinonaktifkan');
       fetchProducts();
     } else {
-      showToast('error', error.message || 'Gagal menghapus produk');
+      showToast('error', error.message || 'Gagal menonaktifkan produk');
     }
   };
 

@@ -223,6 +223,7 @@ Deno.serve(async (req: Request) => {
       let qrisResponse: Record<string, unknown> = {};
       const fersakuSecretKey = Deno.env.get('FERSAKU_SECRET_KEY') || Deno.env.get('FERSAKU_API_KEY');
       const fersakuApiUrl = (Deno.env.get('FERSAKU_API_URL') || 'https://fersaku.com/api/v1').replace(/\/$/, '');
+      let usedFallbackQr = false;
 
       if (fersakuSecretKey) {
         const headersF: Record<string, string> = {
@@ -247,18 +248,23 @@ Deno.serve(async (req: Request) => {
           qrisResponse = await fersakuRes.json().catch(() => ({}));
 
           if (!fersakuRes.ok) {
-            console.error('Fersaku error:', qrisResponse);
-            throw new Error('Fersaku payment creation gagal');
+            console.warn('Fersaku error, using demo QR fallback:', qrisResponse);
+            usedFallbackQr = true;
           }
         } catch (fetchError) {
-          console.error('Fersaku fetch failed:', fetchError);
-          throw new Error('Gagal terhubung ke Fersaku. Periksa host/API URL dan kredensial.');
+          console.warn('Fersaku fetch failed, using demo QR fallback:', fetchError);
+          usedFallbackQr = true;
         }
       } else {
+        usedFallbackQr = true;
+      }
+
+      if (usedFallbackQr || !qrisResponse.qr_string && !qrisResponse.qris_string && !qrisResponse.qris && !qrisResponse.qr && !qrisResponse.qr_image_url && !qrisResponse.qr_code_url && !qrisResponse.qrcode_url && !qrisResponse.qr_url) {
         qrisResponse = {
           qr_string: `000201010211${referenceId}5300336ID5913EZ-STORE DEMO6013ID6013EZ-STORE DEMO6304`,
           qr_image_url: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=000201010211${referenceId}`,
           external_id: referenceId,
+          fallback: true,
         };
       }
 
