@@ -53,8 +53,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    const token = req.headers.get('X-Admin-Token') || req.headers.get('x-admin-token') || '';
     const verified = await verifyToken(token);
 
     if (!verified) {

@@ -54,7 +54,7 @@ export function AdminProductsPage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        'X-Admin-Token': token,
       },
       body: JSON.stringify({ action: 'fetch_products' }),
     });
@@ -78,7 +78,7 @@ export function AdminProductsPage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        'X-Admin-Token': token,
       },
       body: JSON.stringify({ action: 'fetch_categories' }),
     });
@@ -176,7 +176,7 @@ export function AdminProductsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          'X-Admin-Token': token,
         },
         body: JSON.stringify({ action, payload }),
       });
@@ -206,7 +206,7 @@ export function AdminProductsPage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        'X-Admin-Token': token,
       },
       body: JSON.stringify({
         action: 'product_update',
@@ -235,7 +235,7 @@ export function AdminProductsPage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        'X-Admin-Token': token,
       },
       body: JSON.stringify({
         action: 'product_delete',

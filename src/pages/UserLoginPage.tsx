@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, AlertCircle, LogIn } from 'lucide-react';
-import { useUserAuth } from '../../context/UserAuthContext';
-import { useToast } from '../../context/ToastContext';
-import { LoadingSpinner } from '../../components/shared/LoadingSpinner';
+import { Mail, Lock, AlertCircle, LogIn, Chrome } from 'lucide-react';
+import { useUserAuth } from '../context/UserAuthContext';
+import { useToast } from '../context/ToastContext';
+import { LoadingSpinner } from '../components/shared/LoadingSpinner';
 
 export function UserLoginPage() {
   const navigate = useNavigate();
-  const { login, isAuthenticated, loading: authLoading } = useUserAuth();
+  const { login, loginWithGoogle, isAuthenticated, loading: authLoading } = useUserAuth();
   const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   if (!authLoading && isAuthenticated) {
@@ -43,6 +44,20 @@ export function UserLoginPage() {
       setError('Terjadi kesalahan. Silakan coba lagi.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setGoogleLoading(true);
+
+    try {
+      const result = await loginWithGoogle();
+      if (!result.success) {
+        setError(result.error || 'Gagal memulai login Google');
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -112,6 +127,22 @@ export function UserLoginPage() {
               {loading ? 'Memproses...' : 'Masuk'}
             </button>
           </form>
+
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted">atau</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading || loading}
+            className="btn-secondary w-full flex items-center justify-center gap-2"
+          >
+            <Chrome className="w-4 h-4" />
+            {googleLoading ? 'Memproses...' : 'Masuk dengan Google'}
+          </button>
 
           <div className="mt-6 pt-6 border-t border-border text-center">
             <p className="text-sm text-muted mb-2">Belum punya akun?</p>
