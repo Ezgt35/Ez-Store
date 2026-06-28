@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { SettingsProvider } from './context/SettingsContext';
 import { ToastProvider } from './context/ToastContext';
 import { AdminAuthProvider } from './context/AdminAuthContext';
@@ -32,10 +32,6 @@ import { AdminProductsPage } from './pages/admin/AdminProductsPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 
-// User Pages
-import { UserLoginPage } from './pages/UserLoginPage';
-import { UserDashboardPage } from './pages/UserDashboardPage';
-
 function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
@@ -66,8 +62,8 @@ function App() {
               <Route path="/admin/admins" element={<AdminAdminsPage />} />
 
               {/* User Routes */}
-              <Route path="/login" element={<UserLoginPage />} />
-              <Route path="/user/dashboard" element={<UserDashboardPage />} />
+              <Route path="/login" element={<Navigate to="/admin/login" replace />} />
+              <Route path="/user/dashboard" element={<Navigate to="/admin/login" replace />} />
 
               {/* Public Routes */}
               <Route
