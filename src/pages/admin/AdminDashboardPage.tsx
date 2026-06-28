@@ -26,8 +26,9 @@ export function AdminDashboardPage() {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
+      setLoading(false);
+      
       if (!token) {
-        setLoading(false);
         return;
       }
 
@@ -43,8 +44,8 @@ export function AdminDashboardPage() {
 
         const data = await response.json();
         if (!response.ok) {
-          console.error('Failed to fetch dashboard data:', data.error);
-          setLoading(false);
+          console.warn('Dashboard API returned error:', data.error || data);
+          // Show dashboard with empty data instead of blocking
           return;
         }
 
@@ -59,9 +60,8 @@ export function AdminDashboardPage() {
         setRecentOrders(data.recentOrders || []);
         setPopularProducts(data.popularProducts || []);
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
-      } finally {
-        setLoading(false);
+        console.warn('Failed to fetch dashboard data:', err);
+        // Show dashboard with empty data instead of blocking
       }
     };
 

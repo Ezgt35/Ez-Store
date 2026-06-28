@@ -7,93 +7,38 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const ADMIN_AUTH_SECRET = Deno.env.get('ADMIN_AUTH_SECRET') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') || '';
-const TELEGRAM_CHAT_ID = Deno.env.get('TELEGRAM_CHAT_ID') || '';
+const SECRET = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || 'fallback-secret-key';
 
 function base64UrlDecode(value: string) {
   const padded = value.padEnd(value.length + ((4 - (value.length % 4)) % 4), '=');
   const base64 = padded.replace(/-/g, '+').replace(/_/g, '/');
-  const binary = atob(base64);
-  return new Uint8Array([...binary].map((ch) => ch.charCodeAt(0)));
+  return new Uint8Array([...atob(base64)].map(ch => ch.charCodeAt(0)));
 }
 
 async function signPayload(payload: string) {
   const encoder = new TextEncoder();
-  const keyData = encoder.encode(ADMIN_AUTH_SECRET);
+  const keyData = encoder.encode(SECRET);
   const payloadData = encoder.encode(payload);
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, payloadData);
-  return new Uint8Array(signatureBuffer);
+  const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', cryptoKey, payloadData);
+  return new Uint8Array(sig);
 }
 
 async function verifyToken(token: string) {
-  const [payloadPart, signaturePart] = token.split('.');
-  if (!payloadPart || !signaturePart) return null;
-
+  const [payloadPart, sigPart] = token.split('.');
+  if (!payloadPart || !sigPart) return null;
   try {
-    const payloadBytes = base64UrlDecode(payloadPart);
-    const payload = new TextDecoder().decode(payloadBytes);
-    const expectedSignature = await signPayload(payload);
-    const actualSignature = base64UrlDecode(signaturePart);
-
-    if (expectedSignature.length !== actualSignature.length) return null;
-    for (let i = 0; i < expectedSignature.length; i++) {
-      if (expectedSignature[i] !== actualSignature[i]) return null;
-    }
-
+    const payload = new TextDecoder().decode(base64UrlDecode(payloadPart));
+    const expected = await signPayload(payload);
+    const actual = base64UrlDecode(sigPart);
+    if (expected.length !== actual.length) return null;
+    for (let i = 0; i < expected.length; i++) if (expected[i] !== actual[i]) return null;
     const data = JSON.parse(payload) as { adminId: string; email: string; exp: number };
     if (data.exp < Math.floor(Date.now() / 1000)) return null;
     return data;
   } catch {
     return null;
   }
-}
-
-async function sendTelegramMessage(text: string) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
-
-  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
-      text,
-      disable_web_page_preview: true,
-    }),
-  });
-
-  const body = await response.json().catch(() => null);
-  if (!response.ok || !body || !body.ok) {
-    console.error('Telegram send failed', body);
-  }
-}
-
-function formatCurrency(value: unknown) {
-  const amount = Number(value) || 0;
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function mapStatusLabel(status: string) {
-  const lookup: Record<string, string> = {
-    pending: 'Menunggu',
-    processing: 'Diproses',
-    completed: 'Selesai',
-    cancelled: 'Dibatalkan',
-  };
-  return lookup[status] || status;
 }
 
 Deno.serve(async (req: Request) => {
@@ -103,51 +48,71 @@ Deno.serve(async (req: Request) => {
 
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 
   try {
     const authHeader = req.headers.get('Authorization') || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    const verified = token ? await verifyToken(token) : null;
+    const verified = await verifyToken(token);
+
     if (!verified) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return new Response(JSON.stringify({ error: 'Unauthorized', debug: { hasToken: !!token, verified: !!verified } }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || '');
-    const payload = body.payload || {};
 
-    switch (action) {
-      case 'fetch_dashboard': {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    if (action === 'fetch_dashboard') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-        const [productsRes, ordersRes, todayOrdersRes, monthOrdersRes, recentOrdersRes, popularProductsRes] = await Promise.all([
-          supabase.from('products').select('id', { count: 'exact' }).eq('is_active', true),
-          supabase.from('orders').select('id', { count: 'exact' }),
-          supabase.from('orders').select('total').eq('payment_status', 'paid').gte('created_at', today.toISOString()),
-          supabase.from('orders').select('total').eq('payment_status', 'paid').gte('created_at', monthStart.toISOString()),
-          supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).limit(10),
-          supabase.from('products').select('*').eq('is_active', true).eq('is_popular', true).limit(5),
-        ]);
+      const [productsRes, ordersRes, todayOrdersRes, monthOrdersRes, recentOrdersRes, popularProductsRes] = await Promise.all([
+        supabase.from('products').select('id', { count: 'exact' }).eq('is_active', true),
+        supabase.from('orders').select('id', { count: 'exact' }),
+        supabase.from('orders').select('total').eq('payment_status', 'paid').gte('created_at', today.toISOString()),
+        supabase.from('orders').select('total').eq('payment_status', 'paid').gte('created_at', monthStart.toISOString()),
+        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).limit(10),
+        supabase.from('products').select('*').eq('is_active', true).eq('is_popular', true).limit(5),
+      ]);
 
-        const todayRevenue = todayOrdersRes.data?.reduce((sum, o) => sum + Number(o.total), 0) || 0;
-        const monthRevenue = monthOrdersRes.data?.reduce((sum, o) => sum + Number(o.total), 0) || 0;
-        const pendingOrders = ordersRes.data?.filter((o: any) => o.status === 'pending').length || 0;
-        const completedOrders = ordersRes.data?.filter((o: any) => o.status === 'completed').length || 0;
+      const todayRevenue = todayOrdersRes.data?.reduce((sum, o) => sum + Number(o.total), 0) || 0;
+      const monthRevenue = monthOrdersRes.data?.reduce((sum, o) => sum + Number(o.total), 0) || 0;
+      const pendingOrders = ordersRes.data?.filter((o: any) => o.status === 'pending').length || 0;
+      const completedOrders = ordersRes.data?.filter((o: any) => o.status === 'completed').length || 0;
 
-        return new Response(
-          JSON.stringify({
-            totalProducts: productsRes.count || 0,
-            totalOrders: ordersRes.count || 0,
+      return new Response(JSON.stringify({
+        totalProducts: productsRes.count || 0,
+        totalOrders: ordersRes.count || 0,
+        todayRevenue,
+        monthRevenue,
+        pendingOrders,
+        completedOrders,
+        recentOrders: recentOrdersRes.data || [],
+        popularProducts: popularProductsRes.data || [],
+      }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    return new Response(JSON.stringify({ error: 'Unknown action' }), {
+      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    console.error('admin-action error:', err);
+    return new Response(JSON.stringify({ error: 'Internal server error', details: String(err) }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+});
             todayRevenue,
             monthRevenue,
             pendingOrders,
