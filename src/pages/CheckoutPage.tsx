@@ -215,7 +215,10 @@ export function CheckoutPage() {
         throw new Error('Gagal menyimpan item pesanan');
       }
 
-      const qrString = `000201010211${referenceId}5300336ID5913EZ-STORE DEMO6013ID6013EZ-STORE DEMO6304`;
+      const merchantName = 'EZ-STORE';
+      const amount = Math.round(total);
+      const qrPayload = `00020101021126660014ID.CO.QRIS.WALLET0215${merchantName}5303764${amount}5802ID5913${merchantName}6007${referenceId}`;
+      const qrString = `${qrPayload}6304`;
       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrString)}`;
 
       const { data: paymentData, error: paymentError } = await supabase
