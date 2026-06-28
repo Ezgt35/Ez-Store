@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Search, Gamepad2 } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, Search, Gamepad2, LogOut, User } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
+import { useUserAuth } from '../../context/UserAuthContext';
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
+  const navigate = useNavigate();
   const { settings } = useSettings();
+  const { user, logout, isAuthenticated } = useUserAuth();
 
   const navLinks = [
     { name: 'Home', path: '/' },
@@ -65,6 +68,28 @@ export function Navbar() {
               />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             </form>
+            {isAuthenticated && user ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10">
+                  <User className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium text-white">{user.name}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    logout();
+                    navigate('/');
+                  }}
+                  className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" className="btn-primary text-sm py-2 px-4">
+                Login
+              </Link>
+            )}
           </div>
 
           <button
@@ -103,6 +128,35 @@ export function Navbar() {
                   {link.name}
                 </Link>
               ))}
+              <div className="mt-4 pt-4 border-t border-border">
+                {isAuthenticated && user ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10">
+                      <User className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-white">{user.name}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        logout();
+                        navigate('/');
+                        setIsOpen(false);
+                      }}
+                      className="btn-secondary w-full text-sm py-2 px-4 flex items-center justify-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Logout
+                    </button>
+                  </div>
+                ) : (
+                  <Link 
+                    to="/login" 
+                    className="btn-primary w-full text-sm py-2 px-4 flex items-center justify-center"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Login
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         )}
